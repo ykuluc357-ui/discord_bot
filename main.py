@@ -8,8 +8,15 @@ from groq import AsyncGroq
 DISCORD_TOKEN = os.getenv("TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Async Groq Client
-groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+# Groq istemcisini başlangıçta None olarak bırakıyoruz (çökmeyi önler)
+groq_client = None
+
+def get_groq_client():
+    global groq_client
+    if groq_client is None:
+        # İstemci ilk kez ihtiyaç duyulduğunda güvenle oluşturulur
+        groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+    return groq_client
 
 # Discord Intents
 intents = discord.Intents.default()
@@ -19,7 +26,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f"✅ Bot sorunsuz bağlandı: {bot.user.name}")
+    print(f"✅ Bot başarıyla çalıştı ve bağlandı: {bot.user.name}")
     await bot.change_presence(activity=discord.Game(name="Groq AI Sohbet"))
 
 @bot.event
@@ -39,7 +46,10 @@ async def on_message(message):
 
     async with message.channel.typing():
         try:
-            chat_completion = await groq_client.chat.completions.create(
+            # Groq istemcisini çağır
+            client = get_groq_client()
+            
+            chat_completion = await client.chat.completions.create(
                 messages=[
                     {
                         "role": "system",
@@ -66,17 +76,13 @@ async def on_message(message):
                 await message.channel.send(cevap)
 
         except Exception as e:
-            print(f"Hata oluştu: {e}")
-
-async def main():
-    async with bot:
-        if not DISCORD_TOKEN:
-            print("❌ HATA: TOKEN bulunamadı!")
-            return
-        await bot.start(DISCORD_TOKEN)
+            print(f"Groq API Hatası: {e}")
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        print(f"Kritik Hata: {e}")
+    if not DISCORD_TOKEN:
+        print("❌ HATA: TOKEN bulunamadı!")
+    else:
+        try:
+            bot.run(DISCORD_TOKEN)
+        except Exception as e:
+            print(f"Kritik Bot Çalıştırma Hatası: {e}")
